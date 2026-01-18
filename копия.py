@@ -7,10 +7,10 @@ import os
 import re
 
 # Замените на свой токен
-BOT_TOKEN = "8402183854:AAGQJj5bfbY01BnClRsZOF7ErF6ajAzjuLY"
+BOT_TOKEN = "8287060486:AAE6k-v85LSBuxCzNx2o5-zcS_iyD9tgEcU"
 
 # ID администраторов (замените на свои)
-ADMIN_IDS = [123456789, 987654321]  # Пример ID администраторов
+ADMIN_IDS = [123456789, 8139807344]  # Пример ID администраторов
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
