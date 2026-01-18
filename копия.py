@@ -1089,7 +1089,180 @@ def get_roulette_photo(winning_number):
     
     print(f"❌ Файл для числа {winning_number} не найден")
     return None
+# Обработчик команды "рассылка" для админов
+@bot.message_handler(func=lambda message: message.text.lower().startswith('рассылка ') and is_admin(message.from_user.id))
+def handle_broadcast(message):
+    try:
+        if is_spam(message.from_user.id):
+            return
+            
+        if not is_admin(message.from_user.id):
+            bot.send_message(message.chat.id, "❌ У вас нет прав для выполнения этой команды")
+            return
+        
+        # Получаем текст рассылки (все после "рассылка ")
+        broadcast_text = message.text[len('рассылка '):].strip()
+        
+        if not broadcast_text:
+            bot.send_message(message.chat.id, "❌ Введите текст для рассылки. Пример: рассылка Привет всем!")
+            return
+        
+        bot.send_message(message.chat.id, f"⏳ Начинаю рассылку...\nТекст: {broadcast_text[:100]}...")
+        
+        conn = sqlite3.connect('game.db')
+        cursor = conn.cursor()
+        
+        # Получаем всех пользователей которые не забанены
+        cursor.execute('SELECT user_id FROM users WHERE is_banned = 0')
+        users = cursor.fetchall()
+        conn.close()
+        
+        total_users = len(users)
+        successful = 0
+        failed = 0
+        
+        bot.send_message(message.chat.id, f"📊 Всего пользователей для рассылки: {total_users}")
+        
+        # Рассылаем сообщения
+        for user_data in users:
+            user_id = user_data[0]
+            try:
+                bot.send_message(user_id, f"📢 Рассылка от администрации:\n\n{broadcast_text}")
+                successful += 1
+                
+                # Небольшая задержка чтобы не превысить лимиты Telegram
+                time.sleep(0.05)
+                
+            except Exception as e:
+                failed += 1
+                print(f"Ошибка при отправке пользователю {user_id}: {e}")
+        
+        # Отправляем отчет
+        report_message = f"✅ Рассылка завершена!\n\n"
+        report_message += f"📊 Статистика:\n"
+        report_message += f"• Всего пользователей: {total_users}\n"
+        report_message += f"• Успешно отправлено: {successful}\n"
+        report_message += f"• Не удалось отправить: {failed}\n"
+        
+        bot.send_message(message.chat.id, report_message)
+    
+    except Exception as e:
+        print(f"Ошибка в рассылке: {e}")
+        bot.send_message(message.chat.id, f"❌ Ошибка при рассылке: {e}")
 
+# Обработчик команды "статистика" для админов
+@bot.message_handler(func=lambda message: message.text.lower() == 'статистика' and is_admin(message.from_user.id))
+def handle_statistics(message):
+    try:
+        if is_spam(message.from_user.id):
+            return
+            
+        if not is_admin(message.from_user.id):
+            bot.send_message(message.chat.id, "❌ У вас нет прав для выполнения этой команды")
+            return
+        
+        conn = sqlite3.connect('game.db')
+        cursor = conn.cursor()
+        
+        # Получаем общую статистику
+        cursor.execute('SELECT COUNT(*) FROM users')
+        total_users = cursor.fetchone()[0]
+        
+        cursor.execute('SELECT COUNT(*) FROM users WHERE is_banned = 1')
+        banned_users = cursor.fetchone()[0]
+        
+        cursor.execute('SELECT COUNT(*) FROM users WHERE captcha_passed = 1')
+        active_users = cursor.fetchone()[0]
+        
+        cursor.execute('SELECT COUNT(*) FROM users WHERE DATE(registered_at) = DATE("now")')
+        new_today = cursor.fetchone()[0]
+        
+        cursor.execute('SELECT SUM(balance) FROM users')
+        total_balance = cursor.fetchone()[0] or 0
+        
+        cursor.execute('SELECT SUM(bank_deposit) FROM users')
+        total_deposits = cursor.fetchone()[0] or 0
+        
+        conn.close()
+        
+        stats_message = f"📊 Статистика бота:\n\n"
+        stats_message += f"👥 Всего пользователей: {total_users}\n"
+        stats_message += f"✅ Активных (прошли капчу): {active_users}\n"
+        stats_message += f"🚫 Забанено: {banned_users}\n"
+        stats_message += f"📈 Новых сегодня: {new_today}\n"
+        stats_message += f"💰 Общий баланс: ❄️{format_balance(total_balance)}\n"
+        stats_message += f"🏦 Общая сумма в банке: ❄️{format_balance(total_deposits)}\n"
+        
+        bot.send_message(message.chat.id, stats_message)
+    
+    except Exception as e:
+        print(f"Ошибка в статистике: {e}")
+        bot.send_message(message.chat.id, f"❌ Ошибка при получении статистики: {e}")
+
+# Обработчик команды "поиск" для админов
+@bot.message_handler(func=lambda message: message.text.lower().startswith('поиск ') and is_admin(message.from_user.id))
+def handle_search_user(message):
+    try:
+        if is_spam(message.from_user.id):
+            return
+            
+        if not is_admin(message.from_user.id):
+            bot.send_message(message.chat.id, "❌ У вас нет прав для выполнения этой команды")
+            return
+        
+        search_query = message.text[len('поиск '):].strip()
+        
+        if not search_query:
+            bot.send_message(message.chat.id, "❌ Введите поисковый запрос. Пример: поиск @username или поиск 123456789")
+            return
+        
+        conn = sqlite3.connect('game.db')
+        cursor = conn.cursor()
+        
+        # Ищем пользователя по ID, username или имени
+        cursor.execute('''
+            SELECT user_id, username, first_name, balance, is_banned, 
+                   registered_at, last_activity 
+            FROM users 
+            WHERE user_id = ? OR username LIKE ? OR first_name LIKE ?
+            LIMIT 10
+        ''', (search_query, f'%{search_query}%', f'%{search_query}%'))
+        
+        users = cursor.fetchall()
+        conn.close()
+        
+        if not users:
+            bot.send_message(message.chat.id, f"❌ Пользователи по запросу '{search_query}' не найдены")
+            return
+        
+        result_message = f"🔍 Результаты поиска '{search_query}':\n\n"
+        
+        for i, user in enumerate(users, 1):
+            user_id, username, first_name, balance, is_banned, registered_at, last_activity = user
+            
+            display_name = f"@{username}" if username else first_name
+            status = "🚫 Забанен" if is_banned == 1 else "✅ Активен"
+            
+            # Форматируем даты
+            try:
+                reg_date = registered_at[:10] if registered_at else "Неизвестно"
+                last_active = last_activity[:16] if last_activity else "Неизвестно"
+            except:
+                reg_date = "Неизвестно"
+                last_active = "Неизвестно"
+            
+            result_message += f"{i}. {display_name} (ID: {user_id})\n"
+            result_message += f"   Статус: {status}\n"
+            result_message += f"   Баланс: ❄️{format_balance(balance)}\n"
+            result_message += f"   Регистрация: {reg_date}\n"
+            result_message += f"   Последняя активность: {last_active}\n\n"
+        
+        bot.send_message(message.chat.id, result_message)
+    
+    except Exception as e:
+        print(f"Ошибка в поиске: {e}")
+        bot.send_message(message.chat.id, f"❌ Ошибка при поиске: {e}")
+        
 # Обработчик рулетки
 @bot.message_handler(func=lambda message: message.text.lower().startswith(('рул ', 'рулетка ')))
 def handle_roulette(message):
