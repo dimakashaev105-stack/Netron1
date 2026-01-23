@@ -452,7 +452,7 @@ def create_main_menu():
         KeyboardButton("Казино"),
         KeyboardButton("Работа"),
         KeyboardButton("Топ снежков"),
-        KeyboardButton("Панель клана"),
+        KeyboardButton("Панель кла"),
         KeyboardButton("Бонус")
     )
     
