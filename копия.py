@@ -14,7 +14,7 @@ from PIL import Image
 import base64
 import zipfile
 
-BOT_TOKEN = "7885520897:AAGcpzQXNYowvX98YZ04hK3pmZjlV5tT4oQ""
+BOT_TOKEN = "7885520897:AAGcpzQXNYowvX98YZ04hK3pmZjlV5tT4oQ"
 
 ADMIN_IDS = [8139807344, 5255608302]
 
